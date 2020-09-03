@@ -1,3 +1,6 @@
+# 무제한 요금제 사용자 일한도 초과 전문(H9)
+# MSISDN번호별 수신일자 계산 script 
+
 rfd=open("d:\\H9.txt")
 lines = rfd.readlines()
 totalcount = len(lines)
