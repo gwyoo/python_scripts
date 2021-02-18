@@ -1,31 +1,49 @@
-# 기존에 저장한 IP와 doname name query한 것과 비교해서 다를 경우, telegram으로 메시지 전송함
-#
-
 import telepot
 import socket
+import time
+import string
+from datetime import datetime
 
-# telegram 관련 정보
+# telegram info
 token='1601309060:AAGx282hUb_Qe8S-xECQRZE6pY7B0HeAjwo'
 chat_id = 1635025695
 
-# 비교할 IP정보
-db0_ip = '52.231.200.86'
-db1_ip = '52.231.32.42'
+# file info  fname에는 2줄로 구성, 각 줄마다 ip주소가 저장됨
+fname = "iplist.conf"
 
-# master db의 IP정보 비교
-if socket.getaddrinfo('pcc-prd-rdb.mysql.database.azure.com', 80)[0][4][0] != db0_ip:
-    DB0_diff = True
-    print "master diff checked"
-else:
-    DB0_diff = False
+def query_dns(addr):
+    return socket.getaddrinfo(addr, 80)[0][4][0]
 
-# replica db의 IP정보 비교
-if socket.getaddrinfo('pcc-prd-rdb-01.mysql.database.azure.com', 80)[0][4][0] != db1_ip:
-    DB1_diff = True
-    print "replica diff checked"
-else:
-    DB1_diff = False
+bot = telepot.Bot(token)
+while(1):
 
-if DB0_diff or DB1_diff: bot = telepot.Bot(token)
-if DB0_diff: bot.sendMessage(chat_id, text="Master DB Diff")
-if DB1_diff: bot.sendMessage(chat_id, text="Replica DB Diff")
+    # get ip info from FILE
+    f = open(fname, "r")
+    line = f.readlines()
+    db0_ip = string.strip(line[0])
+    db1_ip = string.strip(line[1])
+    f.close()
+
+    # check ip addr change - master db
+    db0_azure_ip = query_dns('pcc-prd-rdb.mysql.database.azure.com')
+    if db0_azure_ip != db0_ip:
+        print  datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Master ip diff", db0_ip, db0_azure_ip
+        bot.sendMessage(chat_id, text="Master DB IP Diff ==> "+ datetime.now().strftime("%Y-%m-%d %H:%M:%S") + ": "       +db0_ip+"|"+db0_azure_ip)
+        db0_ip = db0_azure_ip
+
+    # check ip addr change - replica db
+    db1_azure_ip = query_dns('pcc-prd-rdb-01.mysql.database.azure.com')
+    if db1_azure_ip != db1_ip:
+        print  datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Replica ip diff", db1_ip, db1_azure_ip
+        bot.sendMessage(chat_id, text="Replica DB IP Diff ==> "+ datetime.now().strftime("%Y-%m-%d %H:%M:%S") + ": " + db1_ip + "|" + db1_azure_ip)
+        bot.sendMessage(chat_id, text="Replica DB IP Diff "+db1_ip+"|"+db1_azure_ip)
+        db1_ip = db1_azure_ip
+
+    # put ip info to FILE
+    f = open(fname, "w")
+    f.write(db0_ip + "\n")
+    f.write(db1_ip + "\n")
+    f.close()
+
+    # SLEEP
+    time.sleep(60)
